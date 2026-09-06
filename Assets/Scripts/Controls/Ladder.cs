@@ -1,4 +1,5 @@
 ﻿#if UNITY_EDITOR
+using System.Net.Mail;
 using UnityEditor;
 #endif
 using UnityEngine;
@@ -15,8 +16,10 @@ public class Ladder : MonoBehaviour
     [SerializeField] private Transform _upCollider;
     [SerializeField] private Transform _positionsFolder;
     [SerializeField] private GameObject _attachentPrefab;
-    private GameObject _ladderTop;
-    private GameObject _ladderDown;
+    [SerializeField] private GameObject _attachentPrefab2;
+    [SerializeField] private int _type;
+    [SerializeField] private GameObject _ladderTop;
+    [SerializeField] private GameObject _ladderDown;
     private GameObject _player;
     private PlayerMovement _pm;
 
@@ -33,8 +36,6 @@ public class Ladder : MonoBehaviour
     BoxCollider col;
     void Start()
     {
-        if (transform.Find("Visual").Find("LadderTop")) _ladderTop = transform.Find("Visual").Find("LadderTop").gameObject;
-        if (transform.Find("Visual").Find("LadderDown")) _ladderDown = transform.Find("Visual").Find("LadderDown").gameObject;
         _ladderTop.SetActive(_upEnabled);
 
         _camera = Camera.main;
@@ -47,7 +48,7 @@ public class Ladder : MonoBehaviour
 
     private void OnValidate()
     {
-        CreateLadder(true);
+        //CreateLadder(true);
     }
 
     private void OnDrawGizmos()
@@ -55,25 +56,21 @@ public class Ladder : MonoBehaviour
         if (!_drawGizmos) return;
         Transform p = _rightPipe.parent;
 
-        // Определяем точки в локальном пространстве
         Vector3 localBottomLeft = new Vector3(_drawOffsetLeft.z, 0, _drawOffsetLeft.x);
         Vector3 localBottomRight = new Vector3(_drawOffsetRight.z, 0, _drawOffsetRight.x);
         Vector3 localTopLeft = localBottomLeft - Vector3.up * _ladderSizeY;
         Vector3 localTopRight = localBottomRight - Vector3.up * _ladderSizeY;
 
-        // Преобразуем в мировые координаты с учётом поворота
         Vector3 worldBottomLeft = p.TransformPoint(localBottomLeft);
         Vector3 worldBottomRight = p.TransformPoint(localBottomRight);
         Vector3 worldTopLeft = p.TransformPoint(localTopLeft);
         Vector3 worldTopRight = p.TransformPoint(localTopRight);
 
-        // Рисуем линии
         Gizmos.DrawLine(worldBottomLeft, worldTopLeft);
         Gizmos.DrawLine(worldBottomRight, worldTopRight);
 
         int i2 = 1;
         if (_upEnabled) i2 = 0;
-        // Горизонтальные линии
         for (int i = i2; i < _ladderSizeY * 2; i++)
         {
             float t = i * 0.5f / _ladderSizeY;
@@ -140,6 +137,7 @@ public class Ladder : MonoBehaviour
 
     private void CreateLadder(bool editor)
     {
+        if (editor) return;
         Transform p = _rightPipe.parent;
 
         Vector3 forward = p.forward;
@@ -150,6 +148,23 @@ public class Ladder : MonoBehaviour
         col = GetComponent<BoxCollider>();
         col.size = new Vector3(1, _ladderSizeY, 0.1f);
         col.center = new Vector3(0, _ladderSizeY * -0.5f, 0);
+
+        if (_type != 0)
+        {
+            _upEnabled = false;
+            _downEnabled = false;
+            _rightPipe.gameObject.SetActive(false);
+            _leftPipe.gameObject.SetActive(false);
+            _ladderTop.SetActive(false);
+            _ladderDown.SetActive(false);
+        }
+        else
+        {
+            _rightPipe.gameObject.SetActive(true);
+            _leftPipe.gameObject.SetActive(true);
+            _ladderTop.SetActive(true);
+            _ladderDown.SetActive(true);
+        }
 
         if (_upEnabled)
         {
@@ -172,8 +187,6 @@ public class Ladder : MonoBehaviour
         _positionsFolder.transform.localScale = new Vector3(1, _ladderSizeY, 0.5f);
         _positionsFolder.transform.position = p.position - up * (_ladderSizeY / 2);
 
-        if (editor) return;
-
 
         int ioffset = 0;
         int i2 = 1;
@@ -185,16 +198,26 @@ public class Ladder : MonoBehaviour
 
             Vector3 worldPos = p.position + addPos;
 
-            GameObject obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            GameObject obj = null;
+            if (_type == 1)
+            {
+                obj = Instantiate(_attachentPrefab2);
+                obj.transform.rotation = Quaternion.LookRotation(forward) * Quaternion.Euler(0, 180, 0);
+                obj.transform.position = worldPos - obj.transform.forward * 0.2f;
+            }
+            else
+            {
+                obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                obj.transform.localScale = new Vector3(0.08f, 0.03f, 0.85f);
+                obj.transform.rotation = Quaternion.LookRotation(forward) * Quaternion.Euler(0, 90, 0);
+                obj.transform.position = worldPos;
+            }
             obj.GetComponent<Renderer>().material = _rightPipe.GetComponent<Renderer>().material;
-            obj.transform.position = worldPos;
-            obj.transform.localScale = new Vector3(0.08f, 0.03f, 0.85f);
             obj.transform.parent = transform.Find("Visual");
 
-            obj.transform.rotation = Quaternion.LookRotation(forward) * Quaternion.Euler(0, 90, 0);
         }
         if (_ladderDown) _ladderDown.transform.position = p.position - new Vector3(0, _ladderSizeY, 0);
-        CreateAttachments();
+        if (_type == 0) CreateAttachments();
     }
 
     private void CreateAttachments()
@@ -211,7 +234,6 @@ public class Ladder : MonoBehaviour
         Vector3 localTopLeft = localBottomLeft - Vector3.up * _ladderSizeY;
         Vector3 localTopRight = localBottomRight - Vector3.up * _ladderSizeY;
 
-        // Преобразуем в мировые координаты с учётом поворота
         Vector3 worldBottomLeft = p.TransformPoint(localBottomLeft);
         Vector3 worldBottomRight = p.TransformPoint(localBottomRight);
         Vector3 worldTopLeft = p.TransformPoint(localTopLeft);
