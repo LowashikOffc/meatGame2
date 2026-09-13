@@ -13,5 +13,4 @@ MonoBehaviour:
   m_Name: RadBarrel
   m_EditorClassIdentifier: 
   PositionOffset: {x: 0, y: 0, z: 0}
-  RotationOffset: {x: 0, y: 0, z: 0}
-  Material: 2
+  RotationOffset: {x: 0, y: 41, z: 0}
