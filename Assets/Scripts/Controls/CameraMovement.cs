@@ -40,6 +40,27 @@ public class CameraMovement : MonoBehaviour
         float sin = Mathf.Sin(Time.time * 2) * 0.03f;
         return sin;
     }
+
+    private float RotY()
+    {
+        //if (_crouching)
+        //{
+            float rot = Mathf.Lerp(0, 3 * GetSpeedDelta(), 0.1f);
+            return -rot;
+        //}
+        //else
+        //{
+        //    return 0;
+        //}
+    }
+
+    private float GetSpeedDelta()
+    {
+        float _speedDelta = _playerRb.velocity.y;
+        //Debug.Log(_speedDelta);
+        return _speedDelta;
+    }
+
     private float SinYMove()
     {
         if (!_grounded && !_climbing) return 0;
@@ -66,7 +87,6 @@ public class CameraMovement : MonoBehaviour
     private void Crouch(bool state)
     {
         _crouching = state;
-        //Debug.Log(state);
     }
     
     private float _currentStrafeAngle;
@@ -113,7 +133,7 @@ public class CameraMovement : MonoBehaviour
 
         _sinTime += Time.deltaTime;
         _playerRb.MoveRotation(Quaternion.Euler(0, V, 0));
-        transform.rotation = Quaternion.Slerp(transform.rotation, _rotation * Quaternion.Euler(0,0, StrafeRotation()), Time.deltaTime * (100 / _cameraSmoothing));
+        transform.rotation = Quaternion.Slerp(transform.rotation, _rotation * Quaternion.Euler(RotY(), 0, StrafeRotation()), Time.deltaTime * (100 / _cameraSmoothing));
         Vector3 newPos = _targetPosition.position + Vector3.up * SinY() + Vector3.up * SinYMove() + transform.right * SinZMove();
         Vector3 targetPosition = newPos;// Vector3.Lerp(transform.position, newPos, Time.deltaTime * _cameraMoveSpeed);
        

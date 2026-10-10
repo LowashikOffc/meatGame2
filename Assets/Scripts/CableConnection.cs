@@ -32,20 +32,25 @@ public class CableConnection : MonoBehaviour
         }
         _timeToNextConnect -= Time.fixedDeltaTime;
     }
-
-    private void OnCollisionEnter(Collision collision)
+    private void OnTriggerEnter(Collider collision)
     {
         if (_connected) return;
 
-        var outPos = collision.transform.Find("ConnectPositionOUT");
-        var inPos = collision.transform.Find("ConnectPositionIN");
+        var outPos = collision.transform.parent.Find("ConnectPositionOUT");
+        var inPos = collision.transform.parent.Find("ConnectPositionIN");
+
+        if (outPos == null) outPos = collision.transform.Find("ConnectPositionOUT");
+        if (inPos == null) inPos = collision.transform.Find("ConnectPositionIN");
 
         if ((outPos != null && inPos == null) || (outPos == null && inPos != null) || (outPos != null && inPos != null))
         {
+            Debug.Log(outPos);
+            Debug.Log(inPos);
             if (_timeToNextConnect > 0) return;
 
             Transform obj = collision.transform;
-
+            if (obj.GetComponent<EnergySafe>() == null) obj = collision.transform.parent;
+            Debug.Log (obj);
             EnergySafe safe;
             if (obj.TryGetComponent<EnergySafe>(out safe))
             {

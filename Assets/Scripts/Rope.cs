@@ -52,8 +52,8 @@ public class Rope : MonoBehaviour
         sphere.GetComponent<Collider>().excludeLayers = _excludeLayer;
         Rigidbody rb = sphere.AddComponent<Rigidbody>();
         rb.excludeLayers = _layer;
-        rb.drag = 0.2f;
-        //rb.freezeRotation = true;
+        rb.drag = 0.5f;
+        rb.freezeRotation = true;
 
         SpringJoint spring = sphere.AddComponent<SpringJoint>();
         spring.damper = _damper;

@@ -16,7 +16,7 @@ GameObject:
   - component: {fileID: -7642402593873525224}
   - component: {fileID: 8734266997846665261}
   - component: {fileID: 7045940818168027561}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: RadBarrel
   m_TagString: Carryable
   m_Icon: {fileID: 0}

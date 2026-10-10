@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 8040238035221716305}
   - component: {fileID: 2828516639285665671}
   - component: {fileID: -6430245543506898425}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Ventilation
   m_TagString: Carryable
   m_Icon: {fileID: 0}
@@ -136,7 +136,7 @@ GameObject:
   - component: {fileID: 5772403197186890785}
   - component: {fileID: 1083111636505193030}
   - component: {fileID: 8429933849346386118}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Vent
   m_TagString: Untagged
   m_Icon: {fileID: 0}

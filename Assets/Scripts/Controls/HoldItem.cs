@@ -7,8 +7,10 @@ public class HoldItem : MonoBehaviour
     private Rigidbody _rb;
     private Camera _camera;
     [SerializeField] private float _holdDistance;
+    [SerializeField] private float _targetDistance;
     [SerializeField] private float _pickupDistance;
     [SerializeField] private LayerMask _targetLayer;
+    [SerializeField] private LayerMask _wallsLayer;
     [SerializeField] private string _objectTag;
 
     [SerializeField] private Rigidbody _referenceRigidbody;
@@ -74,12 +76,23 @@ public class HoldItem : MonoBehaviour
         }
     }
 
+    private float GetDistance()
+    {
+        RaycastHit hit;
+        if (Physics.Raycast(_camera.transform.position, _camera.transform.forward, out hit, _holdDistance, _wallsLayer))
+        {
+            //Debug.Log(hit.collider.name);
+            return hit.distance;
+        }
+        return _holdDistance;
+    }
     
 
     private void FixedUpdate()
     {
+        _targetDistance = GetDistance();
         if (!_rb) return;
-        Vector3 targetPosition = _camera.transform.position + _camera.transform.forward * _holdDistance;
+        Vector3 targetPosition = _camera.transform.position + _camera.transform.forward * _targetDistance;
 
         Vector3 newPosition = (targetPosition - _rb.position) * 10;
 

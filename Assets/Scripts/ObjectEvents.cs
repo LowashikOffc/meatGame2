@@ -28,7 +28,6 @@ public class ObjectEvents : MonoBehaviour
     private void FixedUpdate()
     {
         _currentTimeSound -= Time.fixedDeltaTime;
-        if (transform.name == "Ventilation") Debug.Log(_currentTimeSound);
         _distance = Vector3.Distance(transform.position, _lastPos) * 100;
         if (Vector3.Distance(_lastPos, transform.position) > 0.01f)
         {
