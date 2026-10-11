@@ -17,6 +17,7 @@ public class Ladder : MonoBehaviour
     [SerializeField] private Transform _positionsFolder;
     [SerializeField] private GameObject _attachentPrefab;
     [SerializeField] private GameObject _attachentPrefab2;
+    [SerializeField] private Material _material;
     [SerializeField] private int _type;
     [SerializeField] private GameObject _ladderTop;
     [SerializeField] private GameObject _ladderDown;
@@ -212,11 +213,14 @@ public class Ladder : MonoBehaviour
                 obj.transform.rotation = Quaternion.LookRotation(forward) * Quaternion.Euler(0, 90, 0);
                 obj.transform.position = worldPos;
             }
+            _leftPipe.GetComponent<Renderer>().material = _rightPipe.GetComponent<Renderer>().material;
             obj.GetComponent<Renderer>().material = _rightPipe.GetComponent<Renderer>().material;
             obj.transform.parent = transform.Find("Visual");
 
         }
         if (_ladderDown) _ladderDown.transform.position = p.position - new Vector3(0, _ladderSizeY, 0);
+        _ladderTop.transform.Find(_ladderTop.name).GetComponent<Renderer>().material = _rightPipe.GetComponent<Renderer>().material;
+        _ladderDown.transform.Find(_ladderTop.name).GetComponent<Renderer>().material = _rightPipe.GetComponent<Renderer>().material;
         if (_type == 0) CreateAttachments();
     }
 
