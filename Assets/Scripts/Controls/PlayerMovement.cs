@@ -252,7 +252,7 @@ public class PlayerMovement : MonoBehaviour
 
     public bool CheckForGround()
     {
-        float sphereRadius = transform.GetComponent<CapsuleCollider>().radius * 0.99f; // Радиус сферы
+        float sphereRadius = transform.GetComponent<CapsuleCollider>().radius * 0.95f; // Радиус сферы
         float maxDistance = transform.localScale.y * 1f;
 
         if (Physics.SphereCast(transform.position, sphereRadius, Vector3.down, out hit, maxDistance))
@@ -331,7 +331,7 @@ public class PlayerMovement : MonoBehaviour
                 transform.position -= _groundDelta;
                 //Debug.Log(_groundDelta);
 
-                Vector3 newPosition = moveDirection * _movementSpeed;
+                Vector3 newPosition = moveDirection * _movementSpeed + Vector3.down * 0.2f;
                 if (_walking)
                 {
                     if (GetGroundAngle() > _maximumWalkAngle) return;
