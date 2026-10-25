@@ -4,140 +4,80 @@ public class CameraMovement : MonoBehaviour
 {
     [SerializeField] private Transform _targetPosition;
     [SerializeField] private Transform _player;
-    private Rigidbody _playerRb;
-    [SerializeField] private Vector3 _lastPosition;
     [SerializeField] private float _rotationSpeed;
-    private Quaternion _rotation;
-    private float H;
-    private float V;
-    private float _lastVelMagZ;
     [SerializeField] private float _sinusMoveAmplitude;
     [SerializeField] private float _sinusMoveSpeed;
     [SerializeField] private float _crouchSinusMultiply;
-    [SerializeField] private float _cameraMoveSpeed;
     [SerializeField] private float _cameraSmoothing;
 
+    private Rigidbody _playerRb;
     private PlayerMovement _pm;
+    private Quaternion _rotation;
+    private float H, V;
+    private float _sinTime;
+    private float _bobWeight;          // 0..1 Ч плавное включение/выключение покачивани€
+    private float _currentStrafeAngle;
+    private float _targetStrafeAngle;
+    private bool _grounded, _climbing, _walking, _crouching;
 
-    private float _sinTime = 0;
-    private float _sinSavedTime = 0;
-
-    private bool _grounded = false;
-    private bool _climbing = false;
-    private bool _walking = false;
-    private bool _crouching = false;
     private void Start()
     {
         _playerRb = _player.GetComponent<Rigidbody>();
         _pm = _player.GetComponent<PlayerMovement>();
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
-        _pm._crouchAction += Crouch;
-    }
-
-    private float SinY()
-    {
-        float sin = Mathf.Sin(Time.time * 2) * 0.03f;
-        return sin;
-    }
-
-    private float RotY()
-    {
-        //if (_crouching)
-        //{
-            float rot = Mathf.Lerp(0, 3 * GetSpeedDelta(), 0.1f);
-            return -rot;
-        //}
-        //else
-        //{
-        //    return 0;
-        //}
-    }
-
-    private float GetSpeedDelta()
-    {
-        float _speedDelta = _playerRb.velocity.y;
-        //Debug.Log(_speedDelta);
-        return _speedDelta;
-    }
-
-    private float SinYMove()
-    {
-        if (!_grounded && !_climbing) return 0;
-        float m;
-        if (_walking) m = 0.1f * _sinusMoveAmplitude;
-        else if (_crouching) m = 0.1f * _sinusMoveAmplitude * _crouchSinusMultiply;
-        else m = 0;
-        float sin = Mathf.Sin(_sinTime * _sinusMoveSpeed * 2) * Mathf.Lerp(m, _lastVelMagZ, Time.deltaTime * 0.1f);
-        if (_crouching) sin = Mathf.Sin(_sinTime * _sinusMoveSpeed * _crouchSinusMultiply * 2) * Mathf.Lerp(m, _lastVelMagZ, Time.deltaTime * 0.1f);
-        return sin;
-    }
-    private float SinZMove()
-    {
-        if (!_grounded && !_climbing) return 0;
-        float m;
-        if (_walking) m = 0.1f * _sinusMoveAmplitude;
-        else if (_crouching) m = 0.1f * _sinusMoveAmplitude * _crouchSinusMultiply;
-        else m = 0;
-        float sin = Mathf.Sin(_sinTime * _sinusMoveSpeed) * Mathf.Lerp(m, _lastVelMagZ, Time.deltaTime * 0.1f);
-        if (_crouching) sin = Mathf.Sin(_sinTime * _sinusMoveSpeed * _crouchSinusMultiply) * Mathf.Lerp(m, _lastVelMagZ, Time.deltaTime * 0.1f);
-        _lastVelMagZ = m;
-        return sin;
-    }
-    private void Crouch(bool state)
-    {
-        _crouching = state;
-    }
-    
-    private float _currentStrafeAngle;
-    private float _targetStrafeAngle;
-    private float StrafeRotation()
-    {
-        Vector2 moveInput = InputReceiver.Instance.MoveInput;
-
-        if (moveInput != Vector2.zero)
-        {
-            _targetStrafeAngle = -moveInput.x * 1f;
-        }
-        else
-        {
-            _targetStrafeAngle = 0f;
-        }
-
-        _currentStrafeAngle = Mathf.Lerp(_currentStrafeAngle, _targetStrafeAngle, Time.deltaTime * 8f);
-
-        return _currentStrafeAngle;
+        _pm._crouchAction += state => _crouching = state;
     }
 
     private void LateUpdate()
     {
         _grounded = _pm.GetGrounded();
         _climbing = _pm.GetClimbing();
-        if (InputReceiver.Instance.MoveInput.magnitude > 0)
-        {
-            _walking = true;
-            _sinSavedTime = _sinTime;
-        }
-        else
-        {
-            _walking = false;
-            _sinTime = _sinSavedTime;
-        }
+        _walking = InputReceiver.Instance.MoveInput.magnitude > 0;
 
         V += Input.GetAxis("Mouse X") * _rotationSpeed;
-        H -= Input.GetAxis("Mouse Y") * _rotationSpeed;
-
-        H = Mathf.Clamp(H, -80, 80);
-
+        H = Mathf.Clamp(H - Input.GetAxis("Mouse Y") * _rotationSpeed, -80, 80);
         _rotation = Quaternion.Euler(H, V, 0);
 
+        // ‘аза крутитс€ всегда Ч синус непрерывный, скачков фазы нет
         _sinTime += Time.deltaTime;
+
+        // ѕлавно включаем/выключаем покачивание (фикс дЄргань€)
+        float targetBob = (_walking && (_grounded || _climbing)) ? 1f : 0f;
+        _bobWeight = Mathf.MoveTowards(_bobWeight, targetBob, Time.deltaTime * 6f);
+
         _playerRb.MoveRotation(Quaternion.Euler(0, V, 0));
-        transform.rotation = Quaternion.Slerp(transform.rotation, _rotation * Quaternion.Euler(RotY(), 0, StrafeRotation()), Time.deltaTime * (100 / _cameraSmoothing));
-        Vector3 newPos = _targetPosition.position + Vector3.up * SinY() + Vector3.up * SinYMove() + transform.right * SinZMove();
-        Vector3 targetPosition = newPos;// Vector3.Lerp(transform.position, newPos, Time.deltaTime * _cameraMoveSpeed);
-       
-        transform.position = targetPosition;
-        _lastPosition = _targetPosition.position;
+        transform.rotation = Quaternion.Slerp(
+            transform.rotation,
+            _rotation * Quaternion.Euler(RotY(), 0, StrafeRotation()),
+            Time.deltaTime * (100f / _cameraSmoothing));
+
+        float bobY = SinY() + SinMove(_bobWeight, 2f);
+        float bobX = SinMove(_bobWeight, 1f);
+
+        transform.position = _targetPosition.position
+                             + Vector3.up * bobY
+                             + transform.right * bobX;
+    }
+
+    // ѕокачивание по вертикали/горизонтали. mult Ч множитель частоты (2 дл€ Y, 1 дл€ Z)
+    private float SinMove(float weight, float freqMult)
+    {
+        if (weight <= 0f) return 0f;
+        float amp = 0.1f * _sinusMoveAmplitude * (_crouching ? _crouchSinusMultiply : 1f);
+        float freq = _sinusMoveSpeed * (_crouching ? _crouchSinusMultiply : 1f) * freqMult;
+        return Mathf.Sin(_sinTime * freq) * amp * weight;
+    }
+
+    private float SinY() => Mathf.Sin(Time.time * 2f) * 0.03f;
+
+    private float RotY() => -Mathf.Lerp(0f, 3f * _playerRb.velocity.y, 0.1f);
+
+    private float StrafeRotation()
+    {
+        Vector2 moveInput = InputReceiver.Instance.MoveInput;
+        _targetStrafeAngle = moveInput != Vector2.zero ? -moveInput.x : 0f;
+        _currentStrafeAngle = Mathf.Lerp(_currentStrafeAngle, _targetStrafeAngle, Time.deltaTime * 8f);
+        return _currentStrafeAngle;
     }
 }

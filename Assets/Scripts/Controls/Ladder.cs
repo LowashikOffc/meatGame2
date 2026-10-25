@@ -1,279 +1,248 @@
-﻿#if UNITY_EDITOR
-using System.Net.Mail;
+﻿using UnityEngine;
+using static UnityEditor.Experimental.GraphView.GraphView;
+
+#if UNITY_EDITOR
 using UnityEditor;
 #endif
-using UnityEngine;
+
+public enum LadderType { t1, t2, t3 }
 
 public class Ladder : MonoBehaviour
 {
-    private Camera _camera;
-    [SerializeField] private string _tag;
-    [SerializeField] private float _distance;
+    private const string VisualName = "Visual";
+
+    [Header("Interaction")]
+    [SerializeField] private string _tag = "Ladder";
+    [SerializeField] private float _distance = 3f;
     [SerializeField] private LayerMask _targetLayer;
+
+    [Header("Positions")]
     [SerializeField] private Transform _downPosition;
     [SerializeField] private Transform _upPosition;
     [SerializeField] private Transform _downCollider;
     [SerializeField] private Transform _upCollider;
     [SerializeField] private Transform _positionsFolder;
-    [SerializeField] private GameObject _attachentPrefab;
-    [SerializeField] private GameObject _attachentPrefab2;
-    [SerializeField] private Material _material;
-    [SerializeField] private int _type;
-    [SerializeField] private GameObject _ladderTop;
-    [SerializeField] private GameObject _ladderDown;
-    private GameObject _player;
-    private PlayerMovement _pm;
 
+    [Header("Visual")]
+    [SerializeField] private LadderType _type;
     [SerializeField] private Transform _rightPipe;
     [SerializeField] private Transform _leftPipe;
+    [SerializeField] private GameObject _ladderTop;
+    [SerializeField] private GameObject _ladderDown;
+    [SerializeField] private GameObject _attachmentPrefab;
+    [SerializeField] private GameObject _attachmentPrefab2;
+    [SerializeField] private float _ladderSizeY = 2f;
 
+    [Header("Options")]
     [SerializeField] private bool _upEnabled;
     [SerializeField] private bool _downEnabled;
-    [SerializeField] private float _ladderSizeY;
-    private Vector3 _drawOffsetRight = new Vector3(-0.1f, 0, 0.4f);
-    private Vector3 _drawOffsetLeft = new Vector3(-0.1f, 0, -0.4f);
     [SerializeField] private bool _drawGizmos;
 
-    BoxCollider col;
-    void Start()
+    private static readonly Vector3 DrawOffsetRight = new Vector3(-0.1f, 0f, 0.4f);
+    private static readonly Vector3 DrawOffsetLeft = new Vector3(-0.1f, 0f, -0.4f);
+
+    private Camera _camera;
+    private PlayerMovement _pm;
+    private Transform _visual;
+    private BoxCollider _col;
+    private Material _sharedMat;
+
+    private void Awake()
     {
-        _ladderTop.SetActive(_upEnabled);
+        _visual = transform.Find(VisualName);
+        if (_visual == null)
+        {
+            var v = new GameObject(VisualName).transform;
+            v.SetParent(transform, false);
+            _visual = v;
+        }
+
+        _col = GetComponent<BoxCollider>();
+        if (_col == null) _col = gameObject.AddComponent<BoxCollider>();
+
+        if (_rightPipe != null)
+            _sharedMat = _rightPipe.GetComponent<Renderer>().sharedMaterial;
 
         _camera = Camera.main;
-        InputReceiver.Instance._interact += Climb;
-        _player = GameObject.FindGameObjectWithTag("Player");
-        _pm = _player.GetComponent<PlayerMovement>();
-
-        CreateLadder(false);
     }
 
-    private void OnValidate()
+    private void Start()
     {
-        //CreateLadder(true);
+        var player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null) _pm = player.GetComponent<PlayerMovement>();
+
+        if (InputReceiver.Instance != null)
+            InputReceiver.Instance._interact += Climb;
+        else
+            Debug.LogWarning($"[Ladder] {name}: InputReceiver.Instance == null в Start.");
+
+        CreateLadder();
     }
 
-    private void OnDrawGizmos()
+    private void OnDestroy()
     {
-        if (!_drawGizmos) return;
-        Transform p = _rightPipe.parent;
+        if (InputReceiver.Instance != null)
+            InputReceiver.Instance._interact -= Climb;
+    }
 
-        Vector3 localBottomLeft = new Vector3(_drawOffsetLeft.z, 0, _drawOffsetLeft.x);
-        Vector3 localBottomRight = new Vector3(_drawOffsetRight.z, 0, _drawOffsetRight.x);
-        Vector3 localTopLeft = localBottomLeft - Vector3.up * _ladderSizeY;
-        Vector3 localTopRight = localBottomRight - Vector3.up * _ladderSizeY;
+    // ---------- Creation ----------
 
-        Vector3 worldBottomLeft = p.TransformPoint(localBottomLeft);
-        Vector3 worldBottomRight = p.TransformPoint(localBottomRight);
-        Vector3 worldTopLeft = p.TransformPoint(localTopLeft);
-        Vector3 worldTopRight = p.TransformPoint(localTopRight);
-
-        Gizmos.DrawLine(worldBottomLeft, worldTopLeft);
-        Gizmos.DrawLine(worldBottomRight, worldTopRight);
-
-        int i2 = 1;
-        if (_upEnabled) i2 = 0;
-        for (int i = i2; i < _ladderSizeY * 2; i++)
+    private void CreateLadder()
+    {
+        if (_rightPipe == null || _leftPipe == null || _rightPipe.parent == null)
         {
-            float t = i * 0.5f / _ladderSizeY;
-            Vector3 leftPoint = Vector3.Lerp(worldBottomLeft, worldTopLeft, t);
-            Vector3 rightPoint = Vector3.Lerp(worldBottomRight, worldTopRight, t);
-            Gizmos.DrawLine(leftPoint, rightPoint);
+            Debug.LogError($"[Ladder] {name}: _rightPipe/_leftPipe или их parent не назначены.", this);
+            enabled = false;
+            return;
         }
-        for (int i = i2; i < _ladderSizeY * 2; i++)
+        if (_positionsFolder == null)
         {
-            float t = i * 2f / _ladderSizeY;
-            Vector3 leftPoint = Vector3.Lerp(worldBottomLeft, worldTopLeft, t);
-            Vector3 rightPoint = Vector3.Lerp(worldBottomRight, worldTopRight, t);
-            Gizmos.DrawLine(leftPoint, leftPoint + transform.forward * 0.2f);
-            Gizmos.DrawLine(rightPoint, rightPoint + transform.forward * 0.2f);
+            Debug.LogError($"[Ladder] {name}: _positionsFolder не назначен.", this);
+            enabled = false;
+            return;
         }
 
-        #if UNITY_EDITOR
-        Handles.Label(_downCollider.position, _downCollider.name);
-        Handles.Label(_upCollider.position, _upCollider.name);
-        #endif
-        DrawPosition(_downCollider);
-        DrawPosition(_upCollider);
-    }
-
-    private void DrawPosition(Transform obj)
-    {
-        if (obj == null) return;
-        Vector3 pos1 = obj.position + new Vector3(transform.localScale.x / 2, transform.localScale.y / 2, transform.localScale.z / 2);
-        Vector3 pos2 = obj.position + new Vector3(-transform.localScale.x / 2, transform.localScale.y / 2, transform.localScale.z / 2);
-        Vector3 pos3 = obj.position + new Vector3(transform.localScale.x / 2, -transform.localScale.y / 2, transform.localScale.z / 2);
-        Vector3 pos4 = obj.position + new Vector3(-transform.localScale.x / 2, -transform.localScale.y / 2, transform.localScale.z / 2);
-        Vector3 pos5 = obj.position + new Vector3(transform.localScale.x / 2, transform.localScale.y / 2, -transform.localScale.z / 2);
-        Vector3 pos6 = obj.position + new Vector3(-transform.localScale.x / 2, transform.localScale.y / 2, -transform.localScale.z / 2);
-        Vector3 pos7 = obj.position + new Vector3(transform.localScale.x / 2, -transform.localScale.y / 2, -transform.localScale.z / 2);
-        Vector3 pos8 = obj.position + new Vector3(-transform.localScale.x / 2, -transform.localScale.y / 2, -transform.localScale.z / 2);
-
-        Gizmos.DrawLine(pos1, pos2);
-        Gizmos.DrawLine(pos1, pos3);
-        Gizmos.DrawLine(pos1, pos5);
-        Gizmos.DrawLine(pos2, pos4);
-        Gizmos.DrawLine(pos5, pos7);
-        Gizmos.DrawLine(pos3, pos4);
-        Gizmos.DrawLine(pos3, pos7);
-        Gizmos.DrawLine(pos4, pos8);
-        Gizmos.DrawLine(pos7, pos8);
-        Gizmos.DrawLine(pos5, pos6);
-        Gizmos.DrawLine(pos2, pos6);
-        Gizmos.DrawLine(pos8, pos6);
-
-        //Vector3 offset = Vector3.up * 0.05f + Vector3.right * 0.05f;
-
-        //#if UNITY_EDITOR
-        //Handles.Label(pos1 + offset, "Pos1: " + pos1.ToString());
-        //Handles.Label(pos2 + offset, "Pos2: " + pos2.ToString());
-        //Handles.Label(pos3 + offset, "Pos3: " + pos3.ToString());
-        //Handles.Label(pos4 + offset, "Pos4: " + pos4.ToString());
-        //Handles.Label(pos5 + offset, "Pos5: " + pos5.ToString());
-        //Handles.Label(pos6 + offset, "Pos6: " + pos6.ToString());
-        //Handles.Label(pos7 + offset, "Pos7: " + pos7.ToString());
-        //Handles.Label(pos8 + offset, "Pos8: " + pos8.ToString());
-        //#endif
-
-    }
-
-    private void CreateLadder(bool editor)
-    {
-        if (editor) return;
         Transform p = _rightPipe.parent;
-
         Vector3 forward = p.forward;
         Vector3 right = p.right;
         Vector3 up = p.up;
         Vector3 down = -up;
 
-        col = GetComponent<BoxCollider>();
-        col.size = new Vector3(1, _ladderSizeY, 0.1f);
-        col.center = new Vector3(0, _ladderSizeY * -0.5f, 0);
+        // Collider
+        _col.size = new Vector3(1f, _ladderSizeY, 0.1f);
+        _col.center = new Vector3(0f, _ladderSizeY * -0.5f, 0f);
 
-        if (_type != 0)
+        // Type setup
+        bool isT1 = _type == LadderType.t1;
+        if (isT1)
         {
-            _upEnabled = false;
-            _downEnabled = false;
             _rightPipe.gameObject.SetActive(false);
             _leftPipe.gameObject.SetActive(false);
-            _ladderTop.SetActive(false);
-            _ladderDown.SetActive(false);
+            _upEnabled = false;
+            _downEnabled = false;
         }
         else
         {
             _rightPipe.gameObject.SetActive(true);
             _leftPipe.gameObject.SetActive(true);
-            _ladderTop.SetActive(true);
-            _ladderDown.SetActive(true);
         }
+
+        if (_ladderTop != null) _ladderTop.SetActive(_upEnabled);
+        if (_ladderDown != null) _ladderDown.SetActive(_downEnabled);
 
         if (_upEnabled)
         {
-            col.size += Vector3.up * 0.75f;
-            col.center += Vector3.up * 0.375f;
+            _col.size += Vector3.up * 0.75f;
+            _col.center += Vector3.up * 0.375f;
         }
         if (_downEnabled)
         {
-            col.size += Vector3.up * 0.75f;
-            col.center += Vector3.down * 0.375f;
+            _col.size += Vector3.up * 0.75f;
+            _col.center += Vector3.down * 0.375f;
         }
-        _rightPipe.localScale = new Vector3(0.1f, _ladderSizeY / 2, 0.1f);
-        _leftPipe.localScale = new Vector3(0.1f, _ladderSizeY / 2, 0.1f);
+
+        _rightPipe.localScale = new Vector3(0.1f, _ladderSizeY / 2f, 0.1f);
+        _leftPipe.localScale = new Vector3(0.1f, _ladderSizeY / 2f, 0.1f);
 
         Vector3 bottomPoint = p.position - up * (_ladderSizeY * 0.5f);
+        float pipeHalf = _rightPipe.localScale.y;
 
-        _rightPipe.position = bottomPoint + up * (_ladderSizeY * 0.5f) + right * 0.4f - forward * 0.1f - down * -_rightPipe.localScale.y;
-        _leftPipe.position = bottomPoint + up * (_ladderSizeY * 0.5f) - right * 0.4f - forward * 0.1f - down * -_rightPipe.localScale.y;
+        _rightPipe.position = bottomPoint - up * (_ladderSizeY * 0.5f) + right * 0.4f - forward * 0.1f + up * pipeHalf;
+        _leftPipe.position = bottomPoint - up * (_ladderSizeY * 0.5f) - right * 0.4f - forward * 0.1f + up * pipeHalf;
 
-        _positionsFolder.transform.localScale = new Vector3(1, _ladderSizeY, 0.5f);
-        _positionsFolder.transform.position = p.position - up * (_ladderSizeY / 2);
+        _positionsFolder.localScale = new Vector3(1f, _ladderSizeY, 0.5f);
+        _positionsFolder.position = p.position - up * (_ladderSizeY / 2f);
 
+        int ioffset = _downEnabled ? 1 : 0;
+        int i2 = _upEnabled ? 0 : 1;
+        int total = Mathf.RoundToInt(_ladderSizeY * 2f);
 
-        int ioffset = 0;
-        int i2 = 1;
-        if (_upEnabled) i2 = 0;
-        if (_downEnabled) ioffset = 1;
-        for (int i = i2; i < _ladderSizeY * 2 + ioffset; i++)
+        for (int i = i2; i < total + ioffset; i++)
         {
-            Vector3 addPos = down * (i * 0.5f) - forward * 0.1f;
+            Vector3 worldPos = p.position + down * (i * 0.5f) - forward * 0.1f;
 
-            Vector3 worldPos = p.position + addPos;
-
-            GameObject obj = null;
-            if (_type == 1)
+            if (isT1)
             {
-                obj = Instantiate(_attachentPrefab2);
-                obj.transform.rotation = Quaternion.LookRotation(forward) * Quaternion.Euler(0, 180, 0);
+                if (_attachmentPrefab2 == null) continue;
+                var obj = Instantiate(_attachmentPrefab2);
+                obj.transform.rotation = Quaternion.LookRotation(forward) * Quaternion.Euler(0f, 180f, 0f);
                 obj.transform.position = worldPos - obj.transform.forward * 0.2f;
+                var r = obj.GetComponent<Renderer>();
+                if (r != null) r.sharedMaterial = _sharedMat;
+                obj.transform.SetParent(_visual, true);
             }
             else
             {
-                obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                var obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 obj.transform.localScale = new Vector3(0.08f, 0.03f, 0.85f);
-                obj.transform.rotation = Quaternion.LookRotation(forward) * Quaternion.Euler(0, 90, 0);
+                obj.transform.rotation = Quaternion.LookRotation(forward) * Quaternion.Euler(0f, 90f, 0f);
                 obj.transform.position = worldPos;
+                var r = obj.GetComponent<Renderer>();
+                if (r != null) r.sharedMaterial = _sharedMat;
+                obj.transform.SetParent(_visual, true);
             }
-            _leftPipe.GetComponent<Renderer>().material = _rightPipe.GetComponent<Renderer>().material;
-            obj.GetComponent<Renderer>().material = _rightPipe.GetComponent<Renderer>().material;
-            obj.transform.parent = transform.Find("Visual");
-
         }
-        if (_ladderDown) _ladderDown.transform.position = p.position - new Vector3(0, _ladderSizeY, 0);
-        _ladderTop.transform.Find(_ladderTop.name).GetComponent<Renderer>().material = _rightPipe.GetComponent<Renderer>().material;
-        _ladderDown.transform.Find(_ladderTop.name).GetComponent<Renderer>().material = _rightPipe.GetComponent<Renderer>().material;
-        if (_type == 0) CreateAttachments();
+
+        var leftRenderer = _leftPipe.GetComponent<Renderer>();
+        if (leftRenderer != null) leftRenderer.sharedMaterial = _sharedMat;
+
+        if (_ladderDown != null)
+            _ladderDown.transform.position = p.position - Vector3.up * _ladderSizeY;
+
+        SetCapMaterial(_ladderTop);
+        SetCapMaterial(_ladderDown);
+
+        if (isT1) CreateAttachments();
+    }
+
+    private void SetCapMaterial(GameObject cap)
+    {
+        if (cap == null) return;
+        var r = cap.GetComponentInChildren<Renderer>(true);
+        if (r != null) r.sharedMaterial = _sharedMat;
     }
 
     private void CreateAttachments()
     {
+        if (_rightPipe == null || _rightPipe.parent == null) return;
+        if (_attachmentPrefab == null) return;
+
         Transform p = _rightPipe.parent;
-
         Vector3 forward = p.forward;
-        Vector3 right = p.right;
-        Vector3 up = p.up;
-        Vector3 down = -up;
 
-        Vector3 localBottomLeft = new Vector3(_drawOffsetLeft.z, 0, _drawOffsetLeft.x);
-        Vector3 localBottomRight = new Vector3(_drawOffsetRight.z, 0, _drawOffsetRight.x);
-        Vector3 localTopLeft = localBottomLeft - Vector3.up * _ladderSizeY;
-        Vector3 localTopRight = localBottomRight - Vector3.up * _ladderSizeY;
+        Vector3 wbl = p.TransformPoint(new Vector3(DrawOffsetLeft.z, 0f, DrawOffsetLeft.x));
+        Vector3 wbr = p.TransformPoint(new Vector3(DrawOffsetRight.z, 0f, DrawOffsetRight.x));
+        Vector3 wtl = p.TransformPoint(new Vector3(DrawOffsetLeft.z, -_ladderSizeY, DrawOffsetLeft.x));
+        Vector3 wtr = p.TransformPoint(new Vector3(DrawOffsetRight.z, -_ladderSizeY, DrawOffsetRight.x));
 
-        Vector3 worldBottomLeft = p.TransformPoint(localBottomLeft);
-        Vector3 worldBottomRight = p.TransformPoint(localBottomRight);
-        Vector3 worldTopLeft = p.TransformPoint(localTopLeft);
-        Vector3 worldTopRight = p.TransformPoint(localTopRight);
-
-        for (int i = 1; i < _ladderSizeY / 2; i++)
+        for (int i = 1; i < _ladderSizeY / 2f; i++)
         {
             float t = i * 2f / _ladderSizeY;
-            Vector3 leftPoint = Vector3.Lerp(worldBottomLeft, worldTopLeft, t) + transform.forward * 0.2f;
-            Vector3 rightPoint = Vector3.Lerp(worldBottomRight, worldTopRight, t) + transform.forward * 0.2f;
+            Vector3 leftPoint = Vector3.Lerp(wbl, wtl, t) + transform.forward * 0.2f;
+            Vector3 rightPoint = Vector3.Lerp(wbr, wtr, t) + transform.forward * 0.2f;
 
-            GameObject att1 = NewAttachment(forward, leftPoint);
-            GameObject att2 = NewAttachment(forward, rightPoint);
+            NewAttachment(forward, leftPoint);
+            NewAttachment(forward, rightPoint);
         }
     }
 
     private GameObject NewAttachment(Vector3 fwd, Vector3 pos)
     {
-        float offset = 0.2f;
-        //Debug.Log(gameObject.layer);
-        if (Physics.Linecast(pos - fwd * offset, pos + fwd * offset, out RaycastHit hit, ~gameObject.layer))
-        {
-            //Debug.Log($"hit point: {hit.transform.gameObject}");
-            //if (!hit.transform.CompareTag("Untagged")) return null;
+        const float offset = 0.2f;
+        int mask = ~(1 << gameObject.layer);
+        if (!Physics.Linecast(pos - fwd * offset, pos + fwd * offset, mask))
+            return null;
 
-            GameObject attachment = Instantiate(_attachentPrefab);
-            attachment.transform.position = pos;
-            attachment.GetComponent<Renderer>().material = _rightPipe.GetComponent<Renderer>().material;
-            attachment.transform.parent = transform.Find("Visual");
-
-            attachment.transform.rotation = Quaternion.LookRotation(fwd) * Quaternion.Euler(180, 0, 0);
-
-            return attachment;
-        }
-        else return null;
+        var attachment = Instantiate(_attachmentPrefab);
+        attachment.transform.position = pos;
+        attachment.transform.rotation = Quaternion.LookRotation(fwd) * Quaternion.Euler(180f, 0f, 0f);
+        var r = attachment.GetComponent<Renderer>();
+        if (r != null) r.sharedMaterial = _sharedMat;
+        attachment.transform.SetParent(_visual, true);
+        return attachment;
     }
+
+    // ---------- Climb ----------
 
     private void Climb()
     {
@@ -285,9 +254,83 @@ public class Ladder : MonoBehaviour
             if (hit.transform.tag == _tag && hit.transform == transform)
             {
                 //Debug.Log("Tag");
-                Vector3 newPos = new Vector3(_downPosition.position.x, _player.transform.position.y, _downPosition.position.z);
+                Vector3 newPos = new Vector3(_downPosition.position.x, _pm.transform.position.y, _downPosition.position.z);
                 _pm.SetClimbing(true, newPos, _downPosition.position, _upPosition.position, _downCollider.position, _upCollider.position, transform.name);
             }
         }
+    }
+
+    // ---------- Gizmos ----------
+
+    private void OnDrawGizmos()
+    {
+        if (!_drawGizmos) return;
+        if (_rightPipe == null || _rightPipe.parent == null) return;
+
+        Transform p = _rightPipe.parent;
+
+        Vector3 localBottomLeft = new Vector3(DrawOffsetLeft.z, 0f, DrawOffsetLeft.x);
+        Vector3 localBottomRight = new Vector3(DrawOffsetRight.z, 0f, DrawOffsetRight.x);
+        Vector3 localTopLeft = localBottomLeft - Vector3.up * _ladderSizeY;
+        Vector3 localTopRight = localBottomRight - Vector3.up * _ladderSizeY;
+
+        Vector3 worldBottomLeft = p.TransformPoint(localBottomLeft);
+        Vector3 worldBottomRight = p.TransformPoint(localBottomRight);
+        Vector3 worldTopLeft = p.TransformPoint(localTopLeft);
+        Vector3 worldTopRight = p.TransformPoint(localTopRight);
+
+        Gizmos.DrawLine(worldBottomLeft, worldTopLeft);
+        Gizmos.DrawLine(worldBottomRight, worldTopRight);
+
+        int start = _upEnabled ? 0 : 1;
+        int total = Mathf.RoundToInt(_ladderSizeY * 2f);
+
+        // Rungs
+        for (int i = start; i < total; i++)
+        {
+            float t = i * 0.5f / _ladderSizeY;
+            Gizmos.DrawLine(
+                Vector3.Lerp(worldBottomLeft, worldTopLeft, t),
+                Vector3.Lerp(worldBottomRight, worldTopRight, t));
+        }
+
+        // Depth ticks
+        for (int i = start; i < total; i++)
+        {
+            float t = i * 2f / _ladderSizeY;
+            Vector3 l = Vector3.Lerp(worldBottomLeft, worldTopLeft, t);
+            Vector3 r = Vector3.Lerp(worldBottomRight, worldTopRight, t);
+            Gizmos.DrawLine(l, l + transform.forward * 0.2f);
+            Gizmos.DrawLine(r, r + transform.forward * 0.2f);
+        }
+
+        DrawPositionBox(_downCollider);
+        DrawPositionBox(_upCollider);
+
+#if UNITY_EDITOR
+        if (_downCollider != null) Handles.Label(_downCollider.position, _downCollider.name);
+        if (_upCollider != null) Handles.Label(_upCollider.position, _upCollider.name);
+#endif
+    }
+
+    private void DrawPositionBox(Transform obj)
+    {
+        if (obj == null) return;
+        Vector3 s = transform.localScale * 0.5f;
+        Vector3 c = obj.position;
+
+        Vector3 p1 = c + new Vector3(s.x, s.y, s.z);
+        Vector3 p2 = c + new Vector3(-s.x, s.y, s.z);
+        Vector3 p3 = c + new Vector3(s.x, -s.y, s.z);
+        Vector3 p4 = c + new Vector3(-s.x, -s.y, s.z);
+        Vector3 p5 = c + new Vector3(s.x, s.y, -s.z);
+        Vector3 p6 = c + new Vector3(-s.x, s.y, -s.z);
+        Vector3 p7 = c + new Vector3(s.x, -s.y, -s.z);
+        Vector3 p8 = c + new Vector3(-s.x, -s.y, -s.z);
+
+        Gizmos.DrawLine(p1, p2); Gizmos.DrawLine(p1, p3); Gizmos.DrawLine(p1, p5);
+        Gizmos.DrawLine(p2, p4); Gizmos.DrawLine(p5, p7); Gizmos.DrawLine(p3, p4);
+        Gizmos.DrawLine(p3, p7); Gizmos.DrawLine(p4, p8); Gizmos.DrawLine(p7, p8);
+        Gizmos.DrawLine(p5, p6); Gizmos.DrawLine(p2, p6); Gizmos.DrawLine(p8, p6);
     }
 }
