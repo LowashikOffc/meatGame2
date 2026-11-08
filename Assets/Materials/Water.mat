@@ -113,7 +113,7 @@ Material:
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1
     - _SrcBlend: 1
-    - _Tiles: 0.05
+    - _Tiles: 0.2
     - _Tiling: 0.2
     - _UVSec: 0
     - _Use_normal_map: 0

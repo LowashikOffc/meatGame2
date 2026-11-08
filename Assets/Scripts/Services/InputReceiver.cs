@@ -24,6 +24,7 @@ public class InputReceiver : MonoBehaviour
         else Destroy(this);
     }
 
+    //game
     private KeyCode _forward;
     private KeyCode _back;
     private KeyCode _left;
@@ -33,10 +34,23 @@ public class InputReceiver : MonoBehaviour
     private KeyCode _pickup;
     private KeyCode _drop;
 
+    //menu
+    private KeyCode _w;
+    private KeyCode _s;
+    private KeyCode _enter;
+    private KeyCode _esc;
+
+    //game
     public event Action _jumpAction;
     public event Action<bool> _crouchAction;
     public event Action _interact;
     public event Action _dropAction;
+
+    //menu
+    public event Action _wAction;
+    public event Action _sAction;
+    public event Action _enterAction;
+    public event Action _escAction;
 
     [Header("initialize keycodes")]
     [SerializeField] private List<Keycode> _keycodes;
